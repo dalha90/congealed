@@ -110,6 +110,9 @@ function Yc() {
     inertia: !0,
     onDragStart: function (s) {
       B.to(this.target, { rotation: 0, rotationX: 0, rotationY: 0, scale: 1, duration: .2 });
+      if (Aa(this.target.dataset.year || localStorage.getItem("currentYear")) !== "landing-page") {
+        document.querySelector("#mainPage").classList.add("is-dragging");
+      }
     },
     onClick: function () {
       const s = this.target;
@@ -196,6 +199,14 @@ function Yc() {
           }
         }), n._gsap = n._gsap || {}, n._gsap.initialFullscreenScale = 1, $c(n));
       }, 50)
+    },
+    onDragEnd: function () {
+      this.isThrowing || this.target.classList.remove("drag-in-progress");
+      document.querySelector("#mainPage").classList.remove("is-dragging");
+    },
+    onThrowComplete: function () {
+      this.target.classList.remove("drag-in-progress");
+      document.querySelector("#mainPage").classList.remove("is-dragging");
     }
   });
 }
@@ -917,8 +928,7 @@ function Gc() {
     const R = P.toLowerCase().replace(/\s+/g, "-");
     D.classList.remove(...D.classList);
     D.classList.add(R);
-    O === "Today" ? F.innerHTML = "A Veritable Repository of Bygone Eras<br>585 year gallery by Dalha" : F.textContent = P;
-
+    O === "Today" ? F.innerHTML = "A Veritable Repository of Bygone Eras<br>585 year gallery by Dalha" : F.innerHTML = P;
   }
 }
 
