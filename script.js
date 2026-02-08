@@ -1,7 +1,7 @@
 (function(){const t=document.createElement("link").relList;if(t&&t.supports&&t.supports("modulepreload"))return;for(const r of document.querySelectorAll('link[rel="modulepreload"]'))i(r);new MutationObserver(r=>{for(const n of r)if(n.type==="childList")for(const o of n.addedNodes)o.tagName==="LINK"&&o.rel==="modulepreload"&&i(o)}).observe(document,{childList:!0,subtree:!0});function e(r){const n={};return r.integrity&&(n.integrity=r.integrity),r.referrerPolicy&&(n.referrerPolicy=r.referrerPolicy),r.crossOrigin==="use-credentials"?n.credentials="include":r.crossOrigin==="anonymous"?n.credentials="omit":n.credentials="same-origin",n}function i(r){if(r.ep)return;r.ep=!0;const n=e(r);fetch(r.href,n)}})();function $a(){const s=[],t=[1441,1442,1443,1444,1445,1446,1447,1448,1449,1451,1452,1453,1454,1455,1456,1457,1458,1459,1461,1462,1463,1464,1465,1466,1467,1468,1469,1471,1474,1920,1923,1924,1925,1927,1928,1929,1931,1932,1933,1934,1935,1937];for(let e=1440;e<=1940;e++)t.includes(e)||s.push({value:e,type:"year"});return`
 		<div class="preload-instructions">
 			<div class="instructions">
-				<p class="instruct"><i class="arrow-down"></i>Unfurl the sails to yesteryear, embark on a voyage where memories gleam.</p>
+				<p class="instruct"><i class="arrow-down"></i>Unfurl the sails to yesteryear.</p>
 			</div>
 			<div class="century-links left">
 				<span data-century="1601" class="century-link">XVII <i>century</i></span>
@@ -940,3 +940,4 @@ document.querySelector("#app").innerHTML = `
 
 Gc();
 Uc();
+
