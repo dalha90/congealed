@@ -483,8 +483,169 @@ function Vc() {
   }).then(s => (cn = s, s)).catch(s => (console.error("Error loading music data:", s), hr = null, null))), hr);
 }
 
-// Task 1: Remove misleading exhibit label text
-// In the fn function, replace the call to M(R) with code that sets only the era name
+async function Fa(s, token) {
+  // token must be a real token object created by newYearToken()
+  const e = s === "Today" ? new Date().getFullYear() : parseInt(s, 10);
+  const i = await Vc();
+  const r = Aa(e).toLowerCase().replace(/\s+/g, "-");
+
+  // If token is not current, bail.
+  if (!isCurrentToken(token)) return;
+
+  if (r === "landing-page" || s === "Today") {
+    // Stop all music when returning to Today/Landing
+    const p1 = document.getElementById("player1");
+    const p2 = document.getElementById("player2");
+    if (p1) B.to(p1, { volume: 0, duration: un, onComplete: () => { p1.pause(); p1.src = ""; } });
+    if (p2) B.to(p2, { volume: 0, duration: un, onComplete: () => { p2.pause(); p2.src = ""; } });
+    eo = r;
+    return;
+  }
+
+  // Change music when year changes
+  if (r && r !== eo) {
+    eo = r;
+    const p1 = document.getElementById("player1");
+    const p2 = document.getElementById("player2");
+    const nextPlayer = (p1 && p1.src) ? p2 : p1;
+    const prevPlayer = (p1 && p1.src) ? p1 : p2;
+
+    if (i && i[r] && i[r].length > 0) {
+      const u = Math.floor(Math.random() * i[r].length);
+      const song = i[r][u].song;
+
+      // Verify token is still current before modifying DOM/audio
+      if (!isCurrentToken(token)) return;
+
+      // Fade in new music on the next player
+      if (nextPlayer) {
+        nextPlayer.src = song.url;
+        nextPlayer.volume = 0;
+        nextPlayer.muted = Ge;
+        nextPlayer.load();
+        const playPromise = nextPlayer.play();
+        if (playPromise !== void 0) {
+          playPromise.catch(p => {
+            console.log("Autoplay blocked (expected if unmuted interaction missing)", p);
+          });
+        }
+        // Fade out previous player if present
+        if (prevPlayer && prevPlayer.src) {
+          B.to(prevPlayer, {
+            volume: 0, duration: un, onComplete: () => {
+              prevPlayer.pause();
+              prevPlayer.src = "";
+            }
+          });
+        }
+        B.to(nextPlayer, { volume: cs, duration: un });
+      }
+    }
+  }
+}
+
+// ============================================================================
+// API FETCHING
+// ============================================================================
+
+async function io(s, token) {
+  try {
+    const e = await (await fetch(`https://notbigmuzzy.github.io/goghwiththeflow/api/ids/${s}.json`)).json();
+
+    // Verify token is still current after fetch
+    if (!isCurrentToken(token)) {
+      return [];
+    }
+
+    if (!e || e.length === 0) return [];
+
+    const i = Math.floor(Math.random() * 3) + 3;
+    const n = e.sort(() => .5 - Math.random()).slice(0, i);
+    const o = [];
+    let a = 0;
+
+    for (const u of n) {
+      // Check token before each API call
+      if (!isCurrentToken(token)) {
+        return [];
+      }
+
+      const c = `https://collectionapi.metmuseum.org/public/collection/v1/objects/${u}`;
+      const f = new AbortController();
+      const p = setTimeout(() => f.abort(), 1e4);
+
+      try {
+        const d = await fetch(c, { signal: f.signal });
+        clearTimeout(p);
+
+        if (d.status === 403) {
+          ro();
+          return o;
+        }
+
+        if (!d.ok) continue;
+
+        const l = await d.json();
+        if (l && l.primaryImage) o.push(l);
+      } catch (d) {
+        if (d.name === "AbortError") continue;
+        if (a++, d.message && d.message.includes("Failed to fetch") && a >= 2) {
+          ro();
+          return o;
+        }
+      }
+    }
+
+    // Final token check before returning
+    if (!isCurrentToken(token)) {
+      return [];
+    }
+
+    return o;
+  } catch {
+    return [];
+  }
+}
+
+function ro() {
+  if (document.querySelector(".rate-limit-popup")) return;
+  const s = document.createElement("div");
+  s.className = "rate-limit-popup";
+  s.innerHTML = `
+		<div class="rate-limit-content">
+			<p>Due to Met Museum API restrictions, please wait a moment before making another request.</p>
+			<div class="rate-limit-timer">
+				<div class="rate-limit-bar"></div>
+			</div>
+		</div>
+	`;
+  document.body.appendChild(s);
+  setTimeout(() => {
+    s.classList.add("show");
+    const t = s.querySelector(".rate-limit-bar");
+    t.style.animation = "shrinkBar 60s linear forwards";
+  }, 10);
+  setTimeout(() => {
+    s.classList.remove("show");
+    setTimeout(() => s.remove(), 300);
+  }, 6e4);
+}
+
+// ============================================================================
+// PLAYER CONTROL
+// ============================================================================
+
+function Uc() {
+  const s = document.querySelector(".player-label");
+  s && s.addEventListener("click", () => { Hc() });
+}
+
+function no() { Wc() }
+
+// ============================================================================
+// TIMELINE INTERACTION & PAGE LOADING
+// ============================================================================
+
 async function fn(s, t) {
   const e = localStorage.getItem("currentYear");
   const i = document.querySelector("#timeline");
@@ -516,13 +677,6 @@ async function fn(s, t) {
 
   i.classList.add("downloading");
   r.classList.add("downloading");
-
-  // Task 1: Update exhibit label to show only era name, not clickable text
-  const eraName = Aa(s);
-  const exhibitLabel = document.getElementById("exhibitLabel");
-  if (exhibitLabel) {
-    exhibitLabel.innerHTML = `<span class="era-name">${eraName}</span>`;
-  }
 
   if (t === "dialer") {
     if (u) {
@@ -575,49 +729,215 @@ async function fn(s, t) {
   }
 }
 
-// Task 2: Restore background blur ONLY during image dragging (historical eras only)
-function Js() {
-  Yc();
-  zc();
+function Gc() {
+  const s = document.querySelector(".dialer");
+  const t = document.querySelector("#timeline");
+  const e = document.querySelector("#preloader");
+  const i = document.querySelectorAll(".panel");
+  const r = document.querySelector("#mainPage");
+  let n = !1, o = 0, a = 0, u = 0, c = 0, f = Date.now(), p = null, d = null, l = !0, _ = 0;
 
-  // Add blur effect during dragging for historical eras only
-  Da.forEach(draggable => {
-    // Store original callbacks
-    const originalOnDragStart = draggable.vars.onDragStart;
-    const originalOnDragEnd = draggable.vars.onDragEnd;
-    const originalOnThrowComplete = draggable.vars.onThrowComplete;
-
-    // Override onDragStart to add blur
-    draggable.vars.onDragStart = function(s) {
-      // Call original callback
-      if (originalOnDragStart) originalOnDragStart.call(this, s);
-      
-      // Only apply blur for historical eras (not "Today")
-      const currentYear = localStorage.getItem("currentYear");
-      if (currentYear && currentYear !== "Today") {
-        document.querySelector("#mainPage").classList.add("is-dragging");
+  const h = () => {
+    const O = s.scrollLeft, D = O - _, F = window.innerWidth;
+    _ = O;
+    i.forEach(P => {
+      let R;
+      switch (P.className.includes("panel-further") ? "further" : P.className.includes("panel-middle") ? "middle" : P.className.includes("panel-window") ? "window" : "closer") {
+        case "further": R = .25; break;
+        case "middle": R = .5; break;
+        case "window": R = -1.5; break;
+        case "closer": R = 1; break;
       }
-    };
+      let N = B.getProperty(P, "x") || 0;
+      N += D * R;
+      const ot = P.offsetLeft + N;
+      ot > F + 200 ? N -= F + 400 : ot < -200 && (N += F + 400);
+      B.set(P, { x: N });
+    });
+  };
 
-    // Override onDragEnd to remove blur
-    draggable.vars.onDragEnd = function() {
-      // Call original callback if exists
-      if (originalOnDragEnd) originalOnDragEnd.call(this);
-      
-      // Remove blur class
-      document.querySelector("#mainPage").classList.remove("is-dragging");
-    };
+  const g = () => {
+    const O = s.querySelectorAll("li"), D = s.offsetLeft + s.offsetWidth / 2;
+    let F = null, P = 1 / 0;
+    O.forEach(R => {
+      const Y = R.offsetLeft - s.scrollLeft + R.offsetWidth / 2, N = Math.abs(D - Y);
+      N < P && (P = N, F = R);
+    });
+    return F;
+  };
 
-    // Override onThrowComplete to remove blur when inertia ends
-    if (originalOnThrowComplete) {
-      draggable.vars.onThrowComplete = function() {
-        originalOnThrowComplete.call(this);
-        document.querySelector("#mainPage").classList.remove("is-dragging");
-      };
-    } else {
-      draggable.vars.onThrowComplete = function() {
-        document.querySelector("#mainPage").classList.remove("is-dragging");
-      };
+  const x = O => {
+    s.querySelectorAll("li").forEach(D => D.classList.remove("active"));
+    O.classList.add("active");
+  };
+
+  const w = () => {
+    const O = g();
+    if (!O) return;
+    const D = s.offsetWidth / 2;
+    const P = O.offsetLeft + O.offsetWidth / 2 - D;
+    const R = O.dataset.year;
+    t.classList.add("dialing");
+    M(R);
+    const Y = new URL(window.location);
+    Y.searchParams.set("year", R);
+    window.history.replaceState({}, "", Y);
+    B.delayedCall(0, () => {
+      x(O);
+      fn(R, "dialer");
+    });
+    B.to(s, { scrollLeft: P, duration: .5, ease: "power2.out" });
+  };
+
+  const y = () => {
+    d && clearTimeout(d);
+    d = setTimeout(() => { w() }, 0);
+  };
+
+  const T = O => {
+    no();
+    const D = O.pageX || (O.touches && O.touches[0].pageX);
+    n = !0;
+    o = D - s.offsetLeft;
+    a = s.scrollLeft;
+    c = D;
+    f = Date.now();
+    u = 0;
+    s.querySelectorAll("li").forEach(F => F.classList.remove("active"));
+    t.classList.add("dialing");
+    e.classList.add("loading");
+    r.classList.remove("show-exhibit");
+    p && cancelAnimationFrame(p);
+    d && clearTimeout(d);
+  };
+
+  const v = O => {
+    if (!n) return;
+    O.preventDefault();
+    s.querySelectorAll("li").forEach(N => N.classList.remove("active"));
+    const D = O.pageX || (O.touches && O.touches[0].pageX);
+    const P = (D - s.offsetLeft - o) * 2;
+    const R = Date.now();
+    const Y = R - f;
+    Y > 0 && (u = (D - c) / Y);
+    c = D;
+    f = R;
+    s.scrollLeft = a - P;
+  };
+
+  const C = () => {
+    if (!n) return;
+    n = !1;
+    const O = () => {
+      Math.abs(u) > .05 ? (s.scrollLeft -= u * 20, u *= .95, p = requestAnimationFrame(O)) : w();
+    };
+    Math.abs(u) > .25 ? O() : w();
+  };
+
+  const k = () => { n && C(); };
+
+  const S = () => {
+    h();
+    !n && Math.abs(u) < .01 && !l && !t.classList.contains("dialing") && y();
+  };
+
+  s.style.userSelect = "none";
+  s.addEventListener("mousedown", T);
+  s.addEventListener("mousemove", v);
+  s.addEventListener("mouseup", C);
+  s.addEventListener("mouseleave", k);
+  s.addEventListener("touchstart", T, { passive: !1 });
+  s.addEventListener("touchmove", v, { passive: !1 });
+  s.addEventListener("touchend", C);
+  s.addEventListener("scroll", S);
+  s.addEventListener("dragstart", O => O.preventDefault());
+
+  // Initialize on page load
+  {
+    const D = new URLSearchParams(window.location.search).get("year");
+    const F = localStorage.getItem("currentYear");
+    const P = D || F || "Today";
+    let R;
+    P === "Today" ? R = s.querySelector("li:last-child") : R = s.querySelector(`li[data-year="${P}"]`) || s.querySelector("li:last-child");
+    const Y = s.offsetWidth / 2;
+    const $ = R.offsetLeft + R.offsetWidth / 2 - Y;
+    s.scrollLeft = $;
+    _ = $;
+    x(R);
+
+    // Use a real token for initial Fa call
+    const initialToken = newYearToken();
+    Fa(P, initialToken);
+
+    if (P !== "Today") {
+      t.classList.add("dialing");
+      e.classList.add("loading");
+      r.classList.remove("show-exhibit");
+      M(P);
+      setTimeout(() => {
+        fn(P, "dialer");
+      }, 100);
     }
+    setTimeout(() => { l = !1 }, 100);
+  }
+
+  document.querySelector("#moreLink").addEventListener("click", O => {
+    O.preventDefault();
+    const D = g();
+    fn(D.dataset.year, "more");
   });
+
+  document.querySelectorAll(".century-link").forEach(O => {
+    O.addEventListener("click", D => {
+      D.preventDefault();
+      const F = D.target.closest("span");
+      if (!F) return;
+      const P = F.dataset.century;
+      const R = s.querySelector(`li[data-year="${P}"]`);
+      if (!R) return;
+      const Y = s.offsetWidth / 2;
+      const $ = R.offsetLeft + R.offsetWidth / 2 - Y;
+      n = !1;
+      u = 0;
+      p && cancelAnimationFrame(p);
+      d && clearTimeout(d);
+      no();
+      t.classList.add("dialing");
+      e.classList.add("loading");
+      r.classList.remove("show-exhibit");
+      M(P);
+      B.to(s, { scrollLeft: $, duration: 2, ease: "power2.inOut", onComplete: () => { w(); } });
+    });
+  });
+
+  function M(O) {
+    const D = document.querySelector("#gallery");
+    const F = document.querySelector("#exhibitLabel");
+    const P = Aa(O);
+    const R = P.toLowerCase().replace(/\s+/g, "-");
+    D.classList.remove(...D.classList);
+    D.classList.add(R);
+    O === "Today" ? F.innerHTML = "A Veritable Repository of Bygone Eras<br>585 year gallery by Dalha" : F.textContent = P;
+
+  }
 }
+
+// ============================================================================
+// INIT
+// ============================================================================
+localStorage.removeItem("currentYear");
+document.querySelector("#app").innerHTML = `
+	<div id="gallery" class="landing-page">
+ 		${qa()}	
+  		${Bc()} 	
+  	</div>
+  	<div id="navbar">
+		${Ba()}
+  	</div>
+  	<div id="timeline">
+		${$a()}
+  	</div>
+`;
+
+Gc();
+Uc();
